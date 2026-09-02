@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 26.04 / GCC
+            os: ubuntu-26.04
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+
+          - name: Ubuntu 26.04 / Clang
+            os: ubuntu-26.04
+            compiler: clang
+            cc: clang
+            cxx: clang++
+
+          - name: macOS 14 / Clang
+            os: macos-14
+            compiler: clang
+            cc: /usr/bin/clang
+            cxx: /usr/bin/clang++
+
+          - name: macOS 26 / Clang
+            os: macos-26
+            compiler: clang
+            cc: /usr/bin/clang
+            cxx: /usr/bin/clang++
+
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            make \
+            pkg-config \
+            libfuse3-dev \
+            libmbedtls-dev \
+            ruby-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake pkg-config ruby
+          brew install --cask macfuse
+          brew install mbedtls@3
+          export PATH="$(brew --prefix ruby)/bin:/usr/bin:/usr/local/bin:$PATH"
+
+      - name: Configure Linux
+        if: runner.os == 'Linux'
+        run: cmake .
+
+      - name: Configure macOS
+        if: runner.os == 'macOS'
+        run: cmake . -DCMAKE_C_COMPILER=/usr/bin/clang
+
+      - name: Build
+        run: make VERBOSE=1
+
+      - name: Install
+        run: sudo make install
+
+      - name: Test
+        run: make github-test
+
